@@ -26,12 +26,7 @@ public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
     	http
         .authorizeRequests()
-            .antMatchers("/login").permitAll()
-            .antMatchers(HttpMethod.OPTIONS, "/oauth/token").permitAll()
-            .antMatchers("/maya/**").permitAll()
             .antMatchers(HttpMethod.OPTIONS).permitAll()
-            .antMatchers("/resources/user").hasRole("USER")
-            .antMatchers("/resources/admin").hasRole("ADMIN")
             .anyRequest().authenticated()
             .and().httpBasic()
             .and().csrf().disable();

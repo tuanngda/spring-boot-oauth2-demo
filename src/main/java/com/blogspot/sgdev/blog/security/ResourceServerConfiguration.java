@@ -31,9 +31,6 @@ public class ResourceServerConfiguration extends ResourceServerConfigurerAdapter
         	http.requestMatcher(new OAuthRequestedMatcher())
                 .authorizeRequests()
                 	.antMatchers(HttpMethod.OPTIONS).permitAll()
-                    .antMatchers("/resources/user").hasRole("USER")
-                    .antMatchers("/resources/admin").hasRole("ADMIN")
-                    .antMatchers("/resources/client").authenticated()
                     .anyRequest().authenticated();
             http.httpBasic();
         // @formatter:on
