@@ -32,7 +32,6 @@ public class ResourceServerConfiguration extends ResourceServerConfigurerAdapter
                 .authorizeRequests()
                 	.antMatchers(HttpMethod.OPTIONS).permitAll()
                     .anyRequest().authenticated();
-            http.httpBasic();
         // @formatter:on
     }
     
