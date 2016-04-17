@@ -85,5 +85,8 @@ public class GrantByAuthorizationCodeProviderTest {
         
         response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/principal", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
         assertEquals("user", response.getBody());
+        
+        response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/roles", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+        assertEquals("[{\"authority\":\"ROLE_USER\"}]", response.getBody());
     }
 }

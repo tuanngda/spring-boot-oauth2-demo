@@ -83,6 +83,9 @@ public class GrantByClientCredentialTest {
         response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/trusted_client", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         
+        response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/roles", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+        assertEquals("[]", response.getBody());
+        
 	}
 
 }

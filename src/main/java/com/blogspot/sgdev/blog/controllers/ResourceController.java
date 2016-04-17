@@ -39,6 +39,11 @@ public class ResourceController {
 		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		return principal;
 	}
+	
+	@RequestMapping(value="roles", method=RequestMethod.GET)
+	public Object getRoles() {
+		return SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+	}
 
 
 }
