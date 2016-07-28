@@ -38,55 +38,71 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jose4j.jwt.consumer.InvalidJwtException;
+import org.jose4j.jwt.consumer.JwtConsumer;
+import org.jose4j.jwt.consumer.JwtConsumerBuilder;
+import org.jose4j.jwt.consumer.JwtContext;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = Application.class)
 @WebAppConfiguration
 @IntegrationTest({"server.port=0", "enable.security=true"})
 public class GrantByAuthorizationCodeProviderTest {
-    
-    @Value("${local.server.port}")
-    private int port;
-    
-    @Test
-    public void getJwtTokenByAuthorizationCode() throws JsonParseException, JsonMappingException, IOException, URISyntaxException {
-        String redirectUrl = "http://localhost:"+port+"/resources/user";
-        ResponseEntity<String> response = new TestRestTemplate("user","password").postForEntity("http://localhost:" + port + "/oauth/authorize?response_type=code&client_id=normal-app&redirect_uri={redirectUrl}", null, String.class,redirectUrl);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<String> setCookie = response.getHeaders().get("Set-Cookie");
-        String jSessionIdCookie = setCookie.get(0);
-        String cookieValue = jSessionIdCookie.split(";")[0];
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("Cookie", cookieValue);
-        response = new TestRestTemplate("user","password").postForEntity("http://localhost:" + port + "oauth/authorize?response_type=code&client_id=normal-app&redirect_uri={redirectUrl}&user_oauth_approval=true&authorize=Authorize", new HttpEntity<Void>(headers), String.class, redirectUrl);
-        assertEquals(HttpStatus.FOUND, response.getStatusCode());
-        assertNull(response.getBody());
-        String location = response.getHeaders().get("Location").get(0);
-        URI locationURI = new URI(location);
-        String query = locationURI.getQuery();
-        
-        location = "http://localhost:"+port+ "/oauth/token?"+ query + "&grant_type=authorization_code&client_id=normal-app&redirect_uri={redirectUrl}";
-        
-        response = new TestRestTemplate("normal-app","").postForEntity(location, new HttpEntity<Void>(new HttpHeaders()), String.class, redirectUrl);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        
-        HashMap jwtMap = new ObjectMapper().readValue(response.getBody(), HashMap.class);
-        String accessToken = (String)jwtMap.get("access_token");
-        
-        headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer "+accessToken);
-        
-        response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/client", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
-        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
-        
-        response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/user", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        
-        response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/principal", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
-        assertEquals("user", response.getBody());
-        
-        response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/roles", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
-        assertEquals("[{\"authority\":\"ROLE_USER\"}]", response.getBody());
-    }
+
+   @Value("${local.server.port}")
+   private int port;
+
+   @Test
+   public void getJwtTokenByAuthorizationCode() throws JsonParseException, JsonMappingException, IOException, URISyntaxException, InvalidJwtException {
+      String userName = "app_client";
+      String password = "nopass";
+
+      String redirectUrl = "http://localhost:" + port + "/resources/user";
+      ResponseEntity<String> response = new TestRestTemplate(userName, password).postForEntity("http://localhost:" + port + "/oauth/authorize?response_type=code&client_id=normal-app&redirect_uri={redirectUrl}", null, String.class, redirectUrl);
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+      List<String> setCookie = response.getHeaders().get("Set-Cookie");
+      String jSessionIdCookie = setCookie.get(0);
+      String cookieValue = jSessionIdCookie.split(";")[0];
+
+      HttpHeaders headers = new HttpHeaders();
+      headers.add("Cookie", cookieValue);
+      response = new TestRestTemplate(userName, password).postForEntity("http://localhost:" + port + "oauth/authorize?response_type=code&client_id=normal-app&redirect_uri={redirectUrl}&user_oauth_approval=true&authorize=Authorize", new HttpEntity<Void>(headers), String.class, redirectUrl);
+      assertEquals(HttpStatus.FOUND, response.getStatusCode());
+      assertNull(response.getBody());
+      String location = response.getHeaders().get("Location").get(0);
+      URI locationURI = new URI(location);
+      String query = locationURI.getQuery();
+
+      location = "http://localhost:" + port + "/oauth/token?" + query + "&grant_type=authorization_code&client_id=normal-app&redirect_uri={redirectUrl}";
+
+      response = new TestRestTemplate("normal-app", "").postForEntity(location, new HttpEntity<Void>(new HttpHeaders()), String.class, redirectUrl);
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+
+      HashMap jwtMap = new ObjectMapper().readValue(response.getBody(), HashMap.class);
+      String accessToken = (String) jwtMap.get("access_token");
+
+      JwtConsumer firstPassJwtConsumer = new JwtConsumerBuilder()
+         .setSkipAllValidators()
+         .setDisableRequireSignature()
+         .setSkipSignatureVerification()
+         .build();
+
+      JwtContext jwtContext = firstPassJwtConsumer.process(accessToken);
+      assertEquals(userName, jwtContext.getJwtClaims().getClaimValue("user_name"));
+
+      headers = new HttpHeaders();
+      headers.set("Authorization", "Bearer " + accessToken);
+
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/client", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/user", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      assertEquals(HttpStatus.OK, response.getStatusCode());
+
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/principal", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      assertEquals(userName, response.getBody());
+
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/roles", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      assertEquals("[{\"authority\":\"ROLE_USER\"}]", response.getBody());
+   }
 }
