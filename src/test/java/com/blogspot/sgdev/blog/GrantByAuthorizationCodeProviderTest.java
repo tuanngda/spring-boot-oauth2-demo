@@ -24,30 +24,25 @@ import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.IntegrationTest;
-import org.springframework.boot.test.SpringApplicationConfiguration;
-import org.springframework.boot.test.TestRestTemplate;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.web.WebAppConfiguration;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jose4j.jwt.consumer.InvalidJwtException;
-import org.jose4j.jwt.consumer.JwtConsumer;
-import org.jose4j.jwt.consumer.JwtConsumerBuilder;
 import org.jose4j.jwt.consumer.JwtContext;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@SpringApplicationConfiguration(classes = Application.class)
-@WebAppConfiguration
-@IntegrationTest({"server.port=0", "enable.security=true"})
-public class GrantByAuthorizationCodeProviderTest {
+@RunWith(SpringRunner.class)
+@SpringBootTest(classes = Application.class, webEnvironment = WebEnvironment.RANDOM_PORT)
+public class GrantByAuthorizationCodeProviderTest extends OAuth2Test {
 
    @Value("${local.server.port}")
    private int port;
@@ -66,7 +61,8 @@ public class GrantByAuthorizationCodeProviderTest {
 
       HttpHeaders headers = new HttpHeaders();
       headers.add("Cookie", cookieValue);
-      response = new TestRestTemplate(userName, password).postForEntity("http://localhost:" + port + "oauth/authorize?response_type=code&client_id=normal-app&redirect_uri={redirectUrl}&user_oauth_approval=true&authorize=Authorize", new HttpEntity<Void>(headers), String.class, redirectUrl);
+      response = new TestRestTemplate(userName, password).postForEntity("http://localhost:" + port
+         + "oauth/authorize?response_type=code&client_id=normal-app&redirect_uri={redirectUrl}&user_oauth_approval=true&authorize=Authorize", new HttpEntity<>(headers), String.class, redirectUrl);
       assertEquals(HttpStatus.FOUND, response.getStatusCode());
       assertNull(response.getBody());
       String location = response.getHeaders().get("Location").get(0);
@@ -75,34 +71,32 @@ public class GrantByAuthorizationCodeProviderTest {
 
       location = "http://localhost:" + port + "/oauth/token?" + query + "&grant_type=authorization_code&client_id=normal-app&redirect_uri={redirectUrl}";
 
-      response = new TestRestTemplate("normal-app", "").postForEntity(location, new HttpEntity<Void>(new HttpHeaders()), String.class, redirectUrl);
+      response = new TestRestTemplate("normal-app", "").postForEntity(location, new HttpEntity<>(new HttpHeaders()), String.class, redirectUrl);
       assertEquals(HttpStatus.OK, response.getStatusCode());
 
       HashMap jwtMap = new ObjectMapper().readValue(response.getBody(), HashMap.class);
       String accessToken = (String) jwtMap.get("access_token");
 
-      JwtConsumer firstPassJwtConsumer = new JwtConsumerBuilder()
-         .setSkipAllValidators()
-         .setDisableRequireSignature()
-         .setSkipSignatureVerification()
-         .build();
+      JwtContext jwtContext = jwtConsumer.process(accessToken);
 
-      JwtContext jwtContext = firstPassJwtConsumer.process(accessToken);
+      logJWTClaims(jwtContext);
+      
       assertEquals(userName, jwtContext.getJwtClaims().getClaimValue("user_name"));
 
       headers = new HttpHeaders();
       headers.set("Authorization", "Bearer " + accessToken);
 
-      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/client", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/client", HttpMethod.GET, new HttpEntity<>(null, headers), String.class);
       assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
 
-      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/user", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/user", HttpMethod.GET, new HttpEntity<>(null, headers), String.class);
       assertEquals(HttpStatus.OK, response.getStatusCode());
 
-      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/principal", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/principal", HttpMethod.GET, new HttpEntity<>(null, headers), String.class);
       assertEquals(userName, response.getBody());
 
-      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/roles", HttpMethod.GET, new HttpEntity<String>(null, headers), String.class);
+      response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/roles", HttpMethod.GET, new HttpEntity<>(null, headers), String.class);
       assertEquals("[{\"authority\":\"ROLE_USER\"}]", response.getBody());
    }
+
 }
