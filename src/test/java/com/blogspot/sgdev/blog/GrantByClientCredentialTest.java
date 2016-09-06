@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.jose4j.jwt.consumer.JwtContext;
+import org.springframework.web.client.ResourceAccessException;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = Application.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -50,10 +51,10 @@ public class GrantByClientCredentialTest extends OAuth2Test {
       String accessToken = (String) jwtMap.get("access_token");
 
       Jwt jwtToken = JwtHelper.decode(accessToken);
-      
+
       String claims = jwtToken.getClaims();
       logJson(claims);
-      
+
       HashMap claimsMap = new ObjectMapper().readValue(claims, HashMap.class);
       assertEquals("spring-boot-application", ((List<String>) claimsMap.get("aud")).get(0));
       assertEquals("trusted-app", claimsMap.get("client_id"));
@@ -62,6 +63,12 @@ public class GrantByClientCredentialTest extends OAuth2Test {
       List<String> authorities = (List<String>) claimsMap.get("authorities");
       assertEquals(1, authorities.size());
       assertEquals("ROLE_TRUSTED_CLIENT", authorities.get(0));
+   }
+
+   @SuppressWarnings({"rawtypes", "unchecked"})
+   @Test(expected = ResourceAccessException.class)
+   public void accessWithUnknownClientID() throws JsonParseException, JsonMappingException, IOException {
+      ResponseEntity<String> response = new TestRestTemplate("trusted-app", "secrets").postForEntity("http://localhost:" + port + "/oauth/token?client_id=trusted-app&grant_type=client_credentials", null, String.class);
    }
 
    @Test
@@ -80,7 +87,7 @@ public class GrantByClientCredentialTest extends OAuth2Test {
 
       JwtContext jwtContext = jwtConsumer.process(accessToken);
       logJWTClaims(jwtContext);
-      
+
       response = new TestRestTemplate().exchange("http://localhost:" + port + "/resources/principal", HttpMethod.GET, new HttpEntity<>(null, headers), String.class);
       assertEquals("trusted-app", response.getBody());
 
