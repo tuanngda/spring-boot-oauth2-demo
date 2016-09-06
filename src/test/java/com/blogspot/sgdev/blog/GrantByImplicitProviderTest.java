@@ -26,7 +26,7 @@ public class GrantByImplicitProviderTest {
 
     @Value("${local.server.port}")
     private int port;
-    
+
     @Test
     public void getJwtTokenByImplicitGrant() throws JsonParseException, JsonMappingException, IOException {
         String redirectUrl = "http://localhost:"+port+"/resources/user";
@@ -36,19 +36,19 @@ public class GrantByImplicitProviderTest {
         List<String> setCookie = response.getHeaders().get("Set-Cookie");
         String jSessionIdCookie = setCookie.get(0);
         String cookieValue = jSessionIdCookie.split(";")[0];
-        
+
         HttpHeaders headers = new HttpHeaders();
         headers.add("Cookie", cookieValue);
         response = new TestRestTemplate("user","password").postForEntity("http://localhost:" + port 
-           + "oauth/authorize?response_type=token&client_id=normal-app&redirect_uri={redirectUrl}&user_oauth_approval=true&authorize=Authorize",
-           new HttpEntity<>(headers), String.class, redirectUrl);
+                + "oauth/authorize?response_type=token&client_id=normal-app&redirect_uri={redirectUrl}&user_oauth_approval=true&authorize=Authorize",
+                new HttpEntity<>(headers), String.class, redirectUrl);
         assertEquals(HttpStatus.FOUND, response.getStatusCode());
         assertNull(response.getBody());
         String location = response.getHeaders().get("Location").get(0);
-        
+
         //FIXME: Is this a bug with redirect URL?
         location = location.replace("#", "?");
-        
+
         response = new TestRestTemplate().getForEntity(location, String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
     }
